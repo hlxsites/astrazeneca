@@ -11,6 +11,10 @@
  */
 /* eslint-disable no-console, class-methods-use-this */
 
+//-----------------------------------------------------------------------------
+// HELPERS
+//-----------------------------------------------------------------------------
+
 const makeAbsoluteLink = (link) => {
   return new URL(link, 'https://main--astrazeneca--hlxsites.hlx.page/').toString();
 }
@@ -23,24 +27,30 @@ const makeAbsoluteLinks = (main) => {
   });
 }
 
-// const createHTMLLink = (doc, url, title) => {
-//   if (url) {
-//     const a = doc.createElement('a');
-//     a.href = url;
-//     a.textContent = title || url;
-//     return a.outerHTML;
-//   }
-//   return '';
-// }
-
-// const createHTMLHeading = (doc, title, level = 2) => {
-//   if (title) {
-//     const heading = doc.createElement(`h${level}`);
-//     heading.textContent = title;
-//     return heading.outerHTML;
-//   }
-//   return '';
-// }
+const findElementsAfter = (doc, {
+  start, tagFilter, selector, end, wrap, delim,
+}) => {
+  if (!start) return;
+  let cursor = start;
+  const elems = [];
+  while (cursor.nextElementSibling
+    && (!tagFilter || cursor.nextElementSibling.tagName.toLowerCase() === tagFilter)
+    && (!end || cursor.nextElementSibling !== end)) {
+    cursor = cursor.nextElementSibling;
+    cursor.querySelectorAll(selector).forEach((elem) => elems.push(elem));
+  }
+  if (wrap) {
+    const container = doc.createElement(wrap);
+    elems.forEach((elem) => {
+      container.append(elem);
+      if (typeof delim === 'function') {
+        container.append(delim(doc));
+      }
+    });
+    return container;
+  }
+  return elems;
+};
 
 const getTheme = (elem) => {
   try {
@@ -66,23 +76,18 @@ const list = (doc, list, ordered) => {
       }
       el.append(li);
     });
-    return el.outerHTML;
+    return el;
   }
   return '';
 };
 
-const insertSectionAfter = (doc, elem) => {
-  if (elem) {
-    const hr = doc.createElement('hr');
-    if (elem.nextElementSibling) {
-      elem.parentElement.insertBefore(elem.nextElementSibling, hr);
-    } else {
-      elem.parentNode.appendChild(hr);
-    }
-    return hr;
-  }
-  return null;
-}
+const hr = (doc) => doc.createElement('hr');
+
+const location = () => document.querySelector('iframe#contentFrame').contentWindow.location;
+
+//-----------------------------------------------------------------------------
+// BLOCKS & SECTIONS
+//-----------------------------------------------------------------------------
 
 const createHeroSection = (main, doc) => {
   const heroHeader = main.querySelector('.hero-header');
@@ -92,8 +97,7 @@ const createHeroSection = (main, doc) => {
       ['Section Metadata'],
       ['theme', getTheme(heroHeader)]
     ], doc);
-    insertSectionAfter(doc, heroHeader);
-    heroHeader.replaceWith(heroHeader.querySelector('h1'), sectionMetaData);
+    heroHeader.replaceWith(heroHeader.querySelector('h1'), sectionMetaData, hr(doc));
   }
 
   const heroCover = main.querySelector('.hero-feature__cover');
@@ -109,13 +113,18 @@ const createHeroSection = (main, doc) => {
     const heroCoverImg = doc.createElement('img');
     heroCoverImg.src = heroCoverUrl;
     heroCover.append(heroCoverImg);
-    insertSectionAfter(doc, heroCover.closest('.heroFeature'));
+    heroCover.closest('.heroFeature').append(hr(doc));
+  }
+
+  const richHeader = main.querySelector('.section.richHeader');
+  if (richHeader) {
+    richHeader.append(hr(doc));
   }
 };
 
-const createStoriesBlock = (main, doc) => {
+const createFeaturedStoriesBlock = (main, doc) => {
   main.querySelectorAll('.homepage-hero-story-wrapper').forEach((section) => {
-    const data = [['Stories']];
+    const data = [['Featured Stories']];
     const featureStory = section.querySelector('.homepage-hero__feature-story');
     if (featureStory) {
       featureStory.querySelector('p.media-text-link__header')?.remove();
@@ -127,23 +136,19 @@ const createStoriesBlock = (main, doc) => {
       const title = section.querySelector('.homepage-hero__trending-stories .homepage-hero__story-title');
       // reduce story to link
       trendingStories = trendingStories.map((s) => s.querySelector('.treding-story-content .media-text-link__header > a'));
-      data.push([`${title.outerHTML}${list(doc, trendingStories)}`]);
+      data.push([`${title.outerHTML}${list(doc, trendingStories).outerHTML}`]);
     }
     const signupLink = section.querySelector(':scope a.homepage-hero__latest-stories-cta');
     if (signupLink) {
       data.push([signupLink]);
     }
-    // add section break
-    insertSectionAfter(doc, section);
-
     const table = WebImporter.DOMUtils.createTable(data, doc);
-    section.replaceWith(table);
+    section.replaceWith(table, hr(doc));
   });
 }
 
 const createLinkListBlock = (main, doc) => {
   main.querySelectorAll('.curator__accordion-block').forEach((section) => {
-    insertSectionAfter(doc, section);
     const data = [['Link List']];
     const elems = Array.from(section.querySelectorAll('h3, .button'));
     data.push([`${elems.map((e) => e.outerHTML).join('<br>')}`]);
@@ -155,14 +160,16 @@ const createLinkListBlock = (main, doc) => {
     doc);
 
     const table = WebImporter.DOMUtils.createTable(data, doc);
-    section.replaceWith(table, sectionMetaData);
+    section.replaceWith(table, sectionMetaData, hr(doc));
   });
 };
 
-const createAllStoriesBlock = (main, doc) => {
-  main.querySelectorAll('#ng-app').forEach((section) => {
-    insertSectionAfter(doc, section);
-    const data = [['All Stories'], ['Filters: ']];
+const createStoriesBlock = (main, doc) => {
+  const isTopic = location(doc).pathname.includes('/topics/');
+  main.querySelectorAll('#ng-app, div.showMoreWrapper').forEach((section) => {
+    const data = [['Stories']];
+    data.push([['Limit'], [isTopic ? 3 : 6]]);
+    data.push([['Filters'], [isTopic ? doc.title : '']]);
     const table = WebImporter.DOMUtils.createTable(data, doc);
     section.replaceWith(table);
   });
@@ -170,21 +177,74 @@ const createAllStoriesBlock = (main, doc) => {
 
 const createSignUpBannerBlock = (main, doc) => {
   main.querySelectorAll('.newsletterSignUpBanner').forEach((section) => {
-    insertSectionAfter(doc, section);
     const data = [
       ['Sign Up Banner'],
       [section.querySelector('.col-left'), section.querySelector('.col-right')],
     ];
-    // add section metadata
-    const sectionMetaData = WebImporter.DOMUtils.createTable([
-      ['Section Metadata'],
-      ['theme', getTheme(section.querySelector('.newsletter-sign-up'))]],
-    doc);
-
-
     const table = WebImporter.DOMUtils.createTable(data, doc);
-    section.replaceWith(table, sectionMetaData);
+    section.replaceWith(hr(doc), table, hr(doc));
   });
+};
+
+const createRelatedStoriesBlock = (main, doc) => {
+  let start;
+  const h2s = [...main.querySelectorAll('h2')];
+  while (!start && h2s.length) {
+    const h2 = h2s.shift();
+    if (h2.textContent.trim().toLowerCase() === 'related stories') {
+      start = h2;
+    }
+  }
+  if (!start) return;
+  const elems = findElementsAfter(doc, {
+    start,
+    tagFilter: 'p',
+    selector: 'a',
+    wrap: 'p',
+  });
+  const data = [['Related Stories']];
+  data.push([[list(doc, [...elems.children])]]);
+  const table = WebImporter.DOMUtils.createTable(data, doc);
+  start.replaceWith(table);
+
+  table.closest('div.section')?.nextElementSibling?.remove();
+};
+
+const createRecommendedStoriesBlock = (main, doc) => {
+  let start;
+  const h2s = [...main.querySelectorAll('h2')];
+  while (!start && h2s.length) {
+    const h2 = h2s.shift();
+    if (h2.textContent.trim().toLowerCase() === 'you may also like') {
+      start = h2.closest('div.section');
+    }
+  }
+  if (!start) return;
+
+  const links = [...start.nextElementSibling.querySelectorAll('a.content-tile')].map((link) => {
+    link.innerHTML = link.textContent.trim();
+    return link;
+  });
+  const content = list(doc, links);
+
+  const data = [['Recommended Stories']];
+  data.push([[content]]);
+  const table = WebImporter.DOMUtils.createTable(data, doc);
+  start.replaceWith(table);
+};
+
+const removeTopics = (main, doc) => {
+  let start;
+  const h2s = [...main.querySelectorAll('h2')];
+  while (!start && h2s.length) {
+    const h2 = h2s.shift();
+    if (h2.textContent.trim().toLowerCase() === 'topic:') {
+      start = h2.closest('div.section');
+    }
+  }
+  if (!start) return;
+  start.parentNode.removeChild(start.nextElementSibling);
+  start.parentNode.removeChild(start);
 };
 
 const createMetadata = (main, doc) => {
@@ -218,11 +278,20 @@ const createMetadata = (main, doc) => {
     date.closest('.publishedDate').remove();
   }
 
+  const tags = [...main.querySelectorAll('.leftPar.parsys .text.section a')]
+    .map((a) => a.textContent)
+    .join(', ');
+  if (tags) {
+    meta['Tags'] = tags;
+  }
+
   const block = WebImporter.Blocks.getMetadataBlock(doc, meta);
   main.append(block);
 
   return meta;
 }
+
+//-----------------------------------------------------------------------------
 
 export default {
   /**
@@ -232,19 +301,22 @@ export default {
    * @returns {HTMLElement} The root element
    */
   transformDOM: (doc) => {
-    // simply return the body, no transformation (yet)
+    const main = doc.querySelector('.main-section');
+    createMetadata(main, doc);
+
     doc.querySelectorAll('ul.shortcuts, div.mainnav, .modal-window, .leftPar.parsys, div.footer-component').forEach((element) => { 
       element.remove();
     });
 
-    const main = doc.querySelector('.main-section');
     makeAbsoluteLinks(main);
     createHeroSection(main, doc);
-    createStoriesBlock(main, doc);
+    createFeaturedStoriesBlock(main, doc);
     createLinkListBlock(main, doc);
-    createAllStoriesBlock(main, doc);
+    createStoriesBlock(main, doc);
     createSignUpBannerBlock(main, doc);
-    createMetadata(main, doc);
+    createRelatedStoriesBlock(main, doc);
+    removeTopics(main, doc);
+    createRecommendedStoriesBlock(main, doc);
     return doc.body;
   },
 
