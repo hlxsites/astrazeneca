@@ -85,6 +85,21 @@ const hr = (doc) => doc.createElement('hr');
 
 const location = () => document.querySelector('iframe#contentFrame').contentWindow.location;
 
+const extractBackgroundImage = (doc, elem) => {
+  // extract background image
+  const bgImg = elem.style.backgroundImage;
+  if (bgImg && bgImg.startsWith('url(')) {
+    const url = new URL(
+      /url\(\"?(.*)\"?\)/.exec(bgImg)[1],
+      'http://localhost:3000/',
+    ).toString();
+    const img = doc.createElement('img');
+    img.src = url;
+    return img;
+  }
+  return null;
+};
+
 //-----------------------------------------------------------------------------
 // BLOCKS & SECTIONS
 //-----------------------------------------------------------------------------
@@ -102,17 +117,8 @@ const createHeroSection = (main, doc) => {
 
   const heroCover = main.querySelector('.hero-feature__cover');
   if (heroCover) {
-    // extract background image
-    let heroCoverUrl = heroCover.style.backgroundImage;
-    if (heroCoverUrl && heroCoverUrl.startsWith('url(')) {
-      heroCoverUrl = new URL(
-        /url\(\"?(.*)\"?\)/.exec(heroCoverUrl)[1],
-        'http://localhost:3000/',
-      ).toString();
-    }
-    const heroCoverImg = doc.createElement('img');
-    heroCoverImg.src = heroCoverUrl;
-    heroCover.append(heroCoverImg);
+    const heroCoverImg = extractBackgroundImage(doc, heroCover);
+    if (heroCoverImg) heroCover.append(heroCoverImg);
     heroCover.closest('.heroFeature').append(hr(doc));
   }
 
@@ -168,7 +174,7 @@ const createStoriesBlock = (main, doc) => {
   const isTopic = location(doc).pathname.includes('/topics/');
   main.querySelectorAll('#ng-app, div.showMoreWrapper').forEach((section) => {
     const data = [['Stories']];
-    data.push([['Limit'], [isTopic ? 3 : 6]]);
+    data.push([['Limit'], 6]);
     data.push([['Filters'], [isTopic ? doc.title : '']]);
     const table = WebImporter.DOMUtils.createTable(data, doc);
     section.replaceWith(table);
@@ -191,8 +197,10 @@ const createRelatedStoriesBlock = (main, doc) => {
   const h2s = [...main.querySelectorAll('h2')];
   while (!start && h2s.length) {
     const h2 = h2s.shift();
-    if (h2.textContent.trim().toLowerCase() === 'related stories') {
+    const lcText = h2.textContent.trim().toLowerCase();
+    if (['related story', 'related stories'].includes(lcText)) {
       start = h2;
+      break;
     }
   }
   if (!start) return;
@@ -217,6 +225,7 @@ const createRecommendedStoriesBlock = (main, doc) => {
     const h2 = h2s.shift();
     if (h2.textContent.trim().toLowerCase() === 'you may also like') {
       start = h2.closest('div.section');
+      break;
     }
   }
   if (!start) return;
@@ -233,17 +242,49 @@ const createRecommendedStoriesBlock = (main, doc) => {
   start.replaceWith(table);
 };
 
+const createEmbedBlock = (main, doc) => {
+  main.querySelectorAll('.responsive-image__video-link').forEach((video) => {
+    const data = [['Embed']];
+    data.push([[new URL(video.href, location(doc)).hash.split('=')[1]]]);
+    const poster = video.previousElementSibling
+    if (poster && poster.src) {
+      data.push([[poster]]);
+    }
+    const table = WebImporter.DOMUtils.createTable(data, doc);
+    video.replaceWith(table);
+  });
+};
+
+const createQuoteBlock = (main, doc) => {
+  main.querySelectorAll('blockquote').forEach((quote) => {
+    const data = [['Quote']];
+    const content = [...quote.children];
+    const quoteImg = extractBackgroundImage(doc, quote);
+    if (quoteImg) content.unshift(quoteImg);
+    data.push([[...content]]);
+    const table = WebImporter.DOMUtils.createTable(data, doc);
+    quote.replaceWith(table);
+  });
+};
+
 const removeTopics = (main, doc) => {
   let start;
   const h2s = [...main.querySelectorAll('h2')];
   while (!start && h2s.length) {
     const h2 = h2s.shift();
-    if (h2.textContent.trim().toLowerCase() === 'topic:') {
+    const lcText = h2.textContent.trim().toLowerCase();
+    if (['topic:', 'topics:'].includes(lcText)) {
       start = h2.closest('div.section');
     }
   }
   if (!start) return;
-  start.parentNode.removeChild(start.nextElementSibling);
+  if (start.nextElementSibling) {
+    if (!start.nextElementSibling.className.includes('spacer')) {
+    } else {
+      // try next sibling
+      start.nextElementSibling.nextElementSibling?.remove();
+    }
+  }
   start.parentNode.removeChild(start);
 };
 
@@ -267,9 +308,10 @@ const createMetadata = (main, doc) => {
     meta.Image = img;
   }
 
-  const author = doc.querySelector('[name="author"]');
-  if (author) {
-    meta.Author = author.content;
+  const authorSection = doc.querySelector('.bio.section');
+  if (authorSection) {
+    meta['article:author'] = authorSection.querySelector('p.bio__author')?.textContent || '';
+    meta['article:author:image'] = authorSection.querySelector('img.bio__author-image')?.src || '';
   }
 
   const date = main.querySelector('.publishedDate .date__date');
@@ -317,6 +359,8 @@ export default {
     createRelatedStoriesBlock(main, doc);
     removeTopics(main, doc);
     createRecommendedStoriesBlock(main, doc);
+    createQuoteBlock(main, doc);
+    createEmbedBlock(main, doc);
     return doc.body;
   },
 
