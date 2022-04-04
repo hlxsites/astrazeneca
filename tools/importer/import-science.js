@@ -15,14 +15,15 @@
 // HELPERS
 //-----------------------------------------------------------------------------
 
-const makeAbsoluteLink = (link) => {
-  return new URL(link, 'https://main--astrazeneca--hlxsites.hlx.page/').toString();
-}
-
 const makeAbsoluteLinks = (main) => {
   main.querySelectorAll('a').forEach((a) => {
     if (a.href.startsWith('/')) {
-      a.href = makeAbsoluteLink(a.href);
+      let path = a.href;
+      // strip .html extension
+      if (path.endsWith('.html')) {
+        path = path.substring(0, path.length - 5);
+      }
+      a.href = new URL(path, 'https://main--astrazeneca--hlxsites.hlx.page/').toString();
     }
   });
 }
@@ -308,10 +309,22 @@ const createMetadata = (main, doc) => {
     meta.Image = img;
   }
 
-  const authorSection = doc.querySelector('.bio.section');
-  if (authorSection) {
-    meta['article:author'] = authorSection.querySelector('p.bio__author')?.textContent || '';
-    meta['article:author:image'] = authorSection.querySelector('img.bio__author-image')?.src || '';
+  const bios = doc.querySelectorAll('.bio.section');
+  if (bios.length > 0) {
+    if (bios.length === 1) {
+      const author = bios[0];
+      meta['article:author'] = author.querySelector('[itemprop="name"]')?.textContent || '';
+      const bioPic = author.querySelector('[itemprop="image"]')?.src;
+      if (bioPic) {
+        const img = doc.createElement('img');
+        img.src = new URL(bioPic, 'http://localhost:3000/');
+        meta['article:author:image'] = img;
+      }
+    } else {
+      const coAuthors = [...bios].shift();
+      meta['article:author'] = coAuthors.querySelector('[itemprop="name"]')?.textContent || '';
+    }    
+    bios.forEach((bio) => bio.remove());
   }
 
   const date = main.querySelector('.publishedDate .date__date');
@@ -339,10 +352,13 @@ export default {
   /**
    * Apply DOM operations to the provided doc and return
    * the root element to be then transformed to Markdown.
-   * @param {HTMLdoc} doc The doc
+   * @param {String} cfg.url The url of the doc being transformed.
+   * @param {HTMLdoc} cfg.document The doc
    * @returns {HTMLElement} The root element
    */
-  transformDOM: (doc) => {
+  transformDOM: ({ document: doc }) => {
+    console.log(`Path: ${location(doc).pathname}`);
+
     const main = doc.querySelector('.main-section');
     createMetadata(main, doc);
 
@@ -367,10 +383,10 @@ export default {
   /**
    * Return a path that describes the doc being transformed (file name, nesting...).
    * The path is then used to create the corresponding Word doc.
-   * @param {String} url The url of the doc being transformed.
-   * @param {HTMLdoc} doc The doc
+   * @param {String} cfg.url The url of the doc being transformed.
+   * @param {HTMLdoc} cfg.document The doc
    */
-  generateDocumentPath: (url, doc) => {
+  generateDocumentPath: ({ url }) => {
     return new URL(url).pathname.replace('.html', '').replace(/\/$/, '');
   },
 }
