@@ -1,0 +1,149 @@
+.section > .tile-wrapper {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    max-width: 1000px;
+    position: relative;
+    z-index: 1;
+}
+
+.tile {
+    font-family: var(--heading-font-family);
+    display: flex;
+    min-height: 230px;
+}
+
+
+.tile > div {
+    display: flex;
+    align-items: flex-end;
+}
+
+.tile > div h3 {
+    margin: 0;
+    padding: 16px 8px;
+    font-size: 18px;
+    font-weight: 400;
+}
+
+.tile > div p {
+    padding: 4px 8px;
+    font-size: 14px;
+    margin: 0;
+    display: inline-block;
+}
+
+.tile > div p:first-child {
+    padding: 0;
+}
+
+.tile picture {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: -1;
+}
+
+.tile picture img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hero .tile a:any-link{
+    color: var(--background-color);
+}
+
+.tile.grey h3 {
+    background-color: #666;
+}
+
+.tile.grey p {
+    background-color: #999;
+}
+
+.tile.red h3 {
+    background-color: #830051;
+}
+
+.tile.red p {
+    background-color: #b56697;
+}
+
+.tile.hero > div {
+    align-items: center;
+    font-style: italic;
+}
+
+.tile.hero h3 {
+    font-size: var(--heading-font-size-l);
+}
+
+.section.layout-a .tile picture {
+    margin: 8px;
+}
+
+.section.layout-a .tile > div > div {
+    padding: 8px;
+}
+
+.section.layout-a .tile h3 {
+    background-color: #ffffff80;
+}
+
+.section.layout-a .tile p {
+    background-color: #ffffffc0;
+}
+
+.section.layout-a .tile.quote {
+    text-align: right;
+    
+}
+
+.section.layout-a .tile.quote h3 {
+    background-color: white;
+    width: 300px;
+    font-size: 25px;
+    display: inline-block;
+    margin-right: 16px;
+    text-align: left;
+}
+
+.tile.fact {
+    color: white;
+    font-style: italic;
+}
+
+
+.section.layout-a .tile.fact h3 {
+    background-color: unset;
+    font-size: 90px;
+}
+
+.section.layout-a .tile.fact p {
+    background-color: unset;
+    display: block;
+    font-size: 30px;
+}
+
+.section.layout-b .tile.wide h3 {
+    background-color: #000000c0;
+    padding: 16px;
+    font-size: 25px;
+    color: white;
+}
+
+.section.layout-b .tile.pr p:first-child {
+    margin: 0 8px;
+    padding: 8px;
+    background-color: #830051;
+    color: white;
+    display: block;
+    text-transform: uppercase;
+}
+
+.section.layout-b .tile.pr > div {
+    align-items: flex-start;
+}
